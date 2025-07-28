@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from "@google/genai";
 
-// Ensure process.env.API_KEY is available. If not, this will throw an error during build/startup.
+// Ensure process.env.API_KEY is available.
 if (!process.env.API_KEY) {
-    console.error("API_KEY environment variable not set.");
     throw new Error("API_KEY environment variable not set.");
 }
 
@@ -17,20 +16,25 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Command is required' }, { status: 400 });
         }
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+        const geminiResponse = await ai.models.generateContent({
+            // Corrected the model name
+            model: 'gemini-1.5-flash',
             contents: `Provide a short, one-sentence description for the following command-line tool or command: \`${command}\`. Start the sentence with a verb.`,
         });
-        const result = response.response; 
 
-       
-        if (!result || !result.text) {
+        const result = geminiResponse.response;
+
+        // --- MAJOR FIX HERE ---
+        // Call the text() function to get the string content
+        const description = result.text();
+
+        // Now, you can safely work with the 'description' string
+        if (!description) {
             console.error("Gemini API did not return expected text.");
             return NextResponse.json({ error: "Failed to generate description: API returned no text." }, { status: 500 });
         }
 
-        const description = result.text!.trim(); //add !
-        return NextResponse.json({ description });
+        return NextResponse.json({ description: description.trim() });
 
     } catch (error) {
         console.error("Error in /api/generate-description:", error);
