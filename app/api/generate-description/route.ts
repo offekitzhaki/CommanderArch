@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from "@google/genai";
 
@@ -18,10 +17,17 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Command is required' }, { status: 400 });
         }
 
-        const result = await ai.models.generateContent({
+        const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: `Provide a short, one-sentence description for the following command-line tool or command: \`${command}\`. Start the sentence with a verb.`,
         });
+        const result = response.response; 
+
+       
+        if (!result || !result.text) {
+            console.error("Gemini API did not return expected text.");
+            return NextResponse.json({ error: "Failed to generate description: API returned no text." }, { status: 500 });
+        }
 
         const description = result.text.trim();
         return NextResponse.json({ description });
