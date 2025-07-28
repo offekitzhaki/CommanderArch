@@ -29,7 +29,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Failed to generate description: API returned no text." }, { status: 500 });
         }
 
-        const description = result.text.trim();
+        const description = result.text!.trim(); //add !
         return NextResponse.json({ description });
 
     } catch (error) {
