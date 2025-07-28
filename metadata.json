@@ -1,0 +1,7 @@
+
+{
+  "name": "DevOps Command Center (Next.js)",
+  "description": "A quick reference for common DevOps and IT commands, refactored to use Next.js with an API backend structure. Add your own commands and categories, import from a file, and use AI to generate descriptions. All your data is saved locally.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
