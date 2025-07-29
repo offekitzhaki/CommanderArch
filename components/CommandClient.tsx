@@ -322,6 +322,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const isSeeding = useRef(false);
+  const hasLoadedOnce = useRef(false);
   // Track if user has ever been seeded (per user, in localStorage)
   const [hasSeeded, setHasSeeded] = useState(false);
   const SEED_DONE_KEY = 'seed-done-';
@@ -345,9 +346,15 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
       if (user) {
         setIsLoading(true);
         setCommands([]);
-        // בדוק אם כבר בוצע seed למשתמש הזה (ב-localStorage)
         const alreadySeeded = localStorage.getItem(SEED_DONE_KEY + user.id);
-        // טען מה־Supabase
+
+        // הגנה: אל תרוץ פעמיים
+        if (hasLoadedOnce.current) {
+          setIsLoading(false);
+          return;
+        }
+        hasLoadedOnce.current = true;
+
         const { data: userCategories, error } = await supabase
           .from('categories')
           .select('*, commands(*)')
@@ -361,22 +368,23 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
         }
 
         if ((!userCategories || userCategories.length === 0) && !alreadySeeded) {
-          // משתמש חדש – מבצע seed רק פעם אחת
-          await seedInitialData(user.id);
-          localStorage.setItem(SEED_DONE_KEY + user.id, 'true');
-          setHasSeeded(true);
-          // הצג הודעת ברוך הבא (רק פעם אחת)
-          if (!localStorage.getItem(WELCOME_SEED_KEY + user.id)) {
-            setShowWelcome(true);
-            localStorage.setItem(WELCOME_SEED_KEY + user.id, 'true');
+          if (!isSeeding.current) {
+            isSeeding.current = true;
+            await seedInitialData(user.id);
+            localStorage.setItem(SEED_DONE_KEY + user.id, 'true');
+            setHasSeeded(true);
+            if (!localStorage.getItem(WELCOME_SEED_KEY + user.id)) {
+              setShowWelcome(true);
+              localStorage.setItem(WELCOME_SEED_KEY + user.id, 'true');
+            }
+            const { data: seededCategories } = await supabase
+              .from('categories')
+              .select('*, commands(*)')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: true });
+            setCommands(seededCategories || []);
+            isSeeding.current = false;
           }
-          // טען שוב אחרי seed
-          const { data: seededCategories } = await supabase
-            .from('categories')
-            .select('*, commands(*)')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: true });
-          setCommands(seededCategories || []);
         } else {
           setCommands(userCategories);
         }
@@ -389,6 +397,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
       }
     };
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, guestCommands]);
 
   // Welcome message in English
