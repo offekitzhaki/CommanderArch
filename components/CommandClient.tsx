@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import type { Category, Command, CommandWithCategory } from '@/lib/types';
 import { initialCommandData } from '@/lib/data';
@@ -307,6 +307,7 @@ const BulkAddModal = ({ isOpen, onClose, onSave, allCategories }: {
     );
 };
 
+const WELCOME_SEED_KEY = 'welcome-seed-shown';
 
 export default function CommandClient({ guestCommands }: { guestCommands: Category[] }) {
   const [commands, setCommands] = useState<Category[]>([]);
@@ -319,6 +320,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   // --- Auth and Data Loading ---
 
@@ -337,39 +339,43 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   useEffect(() => {
     const loadData = async () => {
       if (user) {
-        // Remove guest data from localStorage and clear commands state on login
-        localStorage.removeItem('devops-commands-guest');
-        setCommands([]);
         setIsLoading(true);
+        setCommands([]);
+        // טען רק מה־Supabase לפי user_id
         const { data: userCategories, error } = await supabase
           .from('categories')
           .select('*, commands(*)')
+          .eq('user_id', user.id)
           .order('created_at', { ascending: true });
-        
+
         if (error) {
-          console.error("Error fetching user data:", error);
           setIsLoading(false);
+          alert('שגיאה בטעינת הקטגוריות. נסה לרענן את הדף.');
           return;
         }
-        const seedFlagKey = user ? `user-seeded-${user.id}` : '';
-        if (userCategories && userCategories.length > 0) {
-          setCommands(userCategories);
-        } else if (user && !localStorage.getItem(seedFlagKey)) {
-          // New user, seed initial data for them (only once per user)
+
+        if (!userCategories || userCategories.length === 0) {
+          // משתמש חדש – מבצע seed
           await seedInitialData(user.id);
-          localStorage.setItem(seedFlagKey, 'true');
+          // הצג הודעת ברוך הבא (רק פעם אחת)
+          if (!localStorage.getItem(WELCOME_SEED_KEY + user.id)) {
+            setShowWelcome(true);
+            localStorage.setItem(WELCOME_SEED_KEY + user.id, 'true');
+          }
+          // טען שוב אחרי seed
           const { data: seededCategories } = await supabase
             .from('categories')
             .select('*, commands(*)')
+            .eq('user_id', user.id)
             .order('created_at', { ascending: true });
           setCommands(seededCategories || []);
         } else {
-          // User deleted all categories intentionally, do not reseed
-          setCommands([]);
+          // משתמש קיים – מציג רק מה שיש
+          setCommands(userCategories);
         }
         setIsLoading(false);
       } else {
-        // Guest user
+        // Guest logic...
         setIsLoading(true);
         const savedGuestCommands = localStorage.getItem('devops-commands-guest');
         setCommands(savedGuestCommands ? JSON.parse(savedGuestCommands) : guestCommands);
@@ -378,7 +384,15 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
     };
     loadData();
   }, [user, guestCommands]);
-  
+
+  // הודעת ברוך הבא למשתמש חדש
+  useEffect(() => {
+    if (showWelcome) {
+      const timer = setTimeout(() => setShowWelcome(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showWelcome]);
+
   // Set selected category when commands load
   useEffect(() => {
     if (!selectedCategory && commands.length > 0) {
@@ -464,8 +478,8 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
       setSelectedCategory(data);
   };
 
-    const handleDeleteCategory = async (category: Category) => {
-        if (!window.confirm(`Are you sure you want to delete the category "${category.name}" and all its commands? This cannot be undone.`)) {
+    const handleDeleteCategory = useCallback(async (category: Category) => {
+        if (!window.confirm(`האם אתה בטוח שברצונך למחוק את הקטגוריה "${category.name}" וכל הפקודות שבה? פעולה זו אינה ניתנת לשחזור.`)) {
             return;
         }
         
@@ -476,14 +490,13 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
             setSelectedCategory(newCategories.length > 0 ? newCategories[0] : null);
         }
         
-        const { error } = await supabase.from('categories').delete().eq('id', category.id);
+        const { error } = await supabase.from('categories').delete().eq('id', category.id).eq('user_id', user?.id || '');
         
         if (error) {
-            console.error("Error deleting category:", error);
-            alert('Failed to delete category.');
+            alert('שגיאה במחיקת הקטגוריה.');
             setCommands(originalCommands); // Revert on error
         }
-    };
+    }, [commands, selectedCategory, user]);
     
     const handleUpdateCategoryName = async (newName: string) => {
         if (!editingCategory) return;
@@ -630,6 +643,9 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
 
   return (
     <>
+      {showWelcome && (
+        <div className="welcome-message">ברוך הבא! יצרנו עבורך קטגוריות התחלתיות.</div>
+      )}
       <header>
         <h1>DevOps Command Center</h1>
         <div className="header-controls">
