@@ -969,3 +969,7 @@ header h1 {
   width: 20px;
   height: 20px;
 }
+
+.back-link-white {
+  color: #fff !important;
+}

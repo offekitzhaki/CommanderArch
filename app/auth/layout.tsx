@@ -7,7 +7,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
        <div className="auth-card">
         {children}
         <p className="auth-form-header" style={{textAlign: "center", fontSize: "0.9rem", marginTop: "1.5rem"}}>
-          <Link href="/">← Back to Command Center</Link>
+          <Link href="/" className="back-link-white">← Back to Command Center</Link>
         </p>
       </div>
     </main>
