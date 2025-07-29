@@ -416,26 +416,44 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   }, [commands, user]);
 
 
+  // עוטף את seedInitialData כך שתהיה עמידה (idempotent)
   const seedInitialData = async (userId: string) => {
+    // בדוק אם כבר קיימות קטגוריות למשתמש
+    const { data: existingCategories, error } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error checking existing categories:', error);
+      return;
+    }
+
+    if (existingCategories && existingCategories.length > 0) {
+      // כבר קיימות קטגוריות – לא מבצע seed
+      return;
+    }
+
+    // כאן מבצע seed רק אם אין אף קטגוריה
     for (const category of initialCommandData) {
-        const { data: catData, error: catError } = await supabase
-            .from('categories')
-            .insert({ name: category.name, user_id: userId })
-            .select()
-            .single();
+      const { data: catData, error: catError } = await supabase
+        .from('categories')
+        .insert({ name: category.name, user_id: userId })
+        .select()
+        .single();
 
-        if (catError || !catData) {
-            console.error('Error seeding category:', catError);
-            continue;
-        }
+      if (catError || !catData) {
+        console.error('Error seeding category:', catError);
+        continue;
+      }
 
-        const commandsToInsert = category.commands.map(cmd => ({
-            ...cmd,
-            category_id: catData.id,
-            user_id: userId,
-        }));
+      const commandsToInsert = category.commands.map(cmd => ({
+        ...cmd,
+        category_id: catData.id,
+        user_id: userId,
+      }));
 
-        await supabase.from('commands').insert(commandsToInsert);
+      await supabase.from('commands').insert(commandsToInsert);
     }
   };
   
