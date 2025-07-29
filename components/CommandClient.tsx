@@ -337,6 +337,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   useEffect(() => {
     const loadData = async () => {
       if (user) {
+        // Remove guest data from localStorage on login
         localStorage.removeItem('devops-commands-guest');
         setIsLoading(true);
         const { data: userCategories, error } = await supabase
@@ -349,15 +350,8 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
           setIsLoading(false);
           return;
         }
-
-        if (userCategories && userCategories.length > 0) {
-          setCommands(userCategories);
-        } else {
-          // New user, seed initial data for them
-          await seedInitialData(user.id);
-          const { data: seededCategories } = await supabase.from('categories').select('*, commands(*)').order('created_at', { ascending: true });
-          setCommands(seededCategories || []);
-        }
+        // Replace commands state with user categories only
+        setCommands(userCategories || []);
         setIsLoading(false);
       } else {
         // Guest user
