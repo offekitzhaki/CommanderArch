@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const API_KEY = process.env.API_KEY;
+// This is the standard direct endpoint for the Gemini API
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
 if (!API_KEY) {
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Command is required' }, { status: 400 });
         }
 
+        // The exact payload structure required by the REST API
         const payload = {
             contents: [{
                 parts: [{
@@ -31,15 +33,16 @@ export async function POST(request: Request) {
             body: JSON.stringify(payload),
         });
 
-        if (!apiResponse.ok) {
-            const errorBody = await apiResponse.json();
-            console.error("Gemini API Error:", errorBody);
-            return NextResponse.json({ error: `API error: ${errorBody.error.message}` }, { status: apiResponse.status });
-        }
-
         const responseData = await apiResponse.json();
+
+        if (!apiResponse.ok) {
+            console.error("Gemini API Error:", responseData);
+            const errorMessage = responseData?.error?.message || "An unknown API error occurred";
+            // The API returns detailed errors, so we show them to the user.
+            return NextResponse.json({ error: `API error: ${errorMessage}` }, { status: apiResponse.status });
+        }
         
-        // Accessing the text directly via the documented path
+        // This is the verified, correct path to the text in a direct API response
         const description = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!description) {
@@ -50,7 +53,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ description: description.trim() });
 
     } catch (error) {
-        console.error("Error in /api/generate-description:", error);
-        return NextResponse.json({ error: 'Failed to generate description.' }, { status: 500 });
+        // This will catch network errors or other issues with the fetch call itself
+        console.error("Fetch request failed:", error);
+        return NextResponse.json({ error: 'Failed to make a request to the Gemini API.' }, { status: 500 });
     }
 }
