@@ -322,6 +322,9 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const isSeeding = useRef(false);
+  // Track if user has ever been seeded (per user, in localStorage)
+  const [hasSeeded, setHasSeeded] = useState(false);
+  const SEED_DONE_KEY = 'seed-done-';
 
   // --- Auth and Data Loading ---
 
@@ -342,7 +345,9 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
       if (user) {
         setIsLoading(true);
         setCommands([]);
-        // טען רק מה־Supabase לפי user_id
+        // בדוק אם כבר בוצע seed למשתמש הזה (ב-localStorage)
+        const alreadySeeded = localStorage.getItem(SEED_DONE_KEY + user.id);
+        // טען מה־Supabase
         const { data: userCategories, error } = await supabase
           .from('categories')
           .select('*, commands(*)')
@@ -351,35 +356,32 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
 
         if (error) {
           setIsLoading(false);
-          alert('שגיאה בטעינת הקטגוריות. נסה לרענן את הדף.');
+          alert('Error loading categories. Please refresh the page.');
           return;
         }
 
-        if (!userCategories || userCategories.length === 0) {
-          if (!isSeeding.current) {
-            isSeeding.current = true;
-            await seedInitialData(user.id);
-            // הצג הודעת ברוך הבא (רק פעם אחת)
-            if (!localStorage.getItem(WELCOME_SEED_KEY + user.id)) {
-              setShowWelcome(true);
-              localStorage.setItem(WELCOME_SEED_KEY + user.id, 'true');
-            }
-            // טען שוב אחרי seed
-            const { data: seededCategories } = await supabase
-              .from('categories')
-              .select('*, commands(*)')
-              .eq('user_id', user.id)
-              .order('created_at', { ascending: true });
-            setCommands(seededCategories || []);
-            isSeeding.current = false;
+        if ((!userCategories || userCategories.length === 0) && !alreadySeeded) {
+          // משתמש חדש – מבצע seed רק פעם אחת
+          await seedInitialData(user.id);
+          localStorage.setItem(SEED_DONE_KEY + user.id, 'true');
+          setHasSeeded(true);
+          // הצג הודעת ברוך הבא (רק פעם אחת)
+          if (!localStorage.getItem(WELCOME_SEED_KEY + user.id)) {
+            setShowWelcome(true);
+            localStorage.setItem(WELCOME_SEED_KEY + user.id, 'true');
           }
+          // טען שוב אחרי seed
+          const { data: seededCategories } = await supabase
+            .from('categories')
+            .select('*, commands(*)')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true });
+          setCommands(seededCategories || []);
         } else {
-          // משתמש קיים – מציג רק מה שיש
           setCommands(userCategories);
         }
         setIsLoading(false);
       } else {
-        // Guest logic...
         setIsLoading(true);
         const savedGuestCommands = localStorage.getItem('devops-commands-guest');
         setCommands(savedGuestCommands ? JSON.parse(savedGuestCommands) : guestCommands);
@@ -389,7 +391,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
     loadData();
   }, [user, guestCommands]);
 
-  // הודעת ברוך הבא למשתמש חדש
+  // Welcome message in English
   useEffect(() => {
     if (showWelcome) {
       const timer = setTimeout(() => setShowWelcome(false), 5000);
@@ -663,10 +665,19 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   const commandsToDisplay = searchQuery ? searchResults : (selectedCategory?.commands || []).map(cmd => ({...cmd, categoryName: selectedCategory?.name || ''}));
   const contentTitle = searchQuery ? `Search results for "${searchQuery}"` : selectedCategory?.name;
 
+  // Spinner/Loader for full app loading (prevents guest flash)
+  if (isLoading) {
+    return (
+      <div className="app-loading">
+        <Spinner />
+      </div>
+    );
+  }
+
   return (
     <>
       {showWelcome && (
-        <div className="welcome-message">ברוך הבא! יצרנו עבורך קטגוריות התחלתיות.</div>
+        <div className="welcome-message">Welcome! We created some starter categories for you.</div>
       )}
       <header>
         <h1>DevOps Command Center</h1>
