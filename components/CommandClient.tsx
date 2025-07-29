@@ -337,6 +337,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   useEffect(() => {
     const loadData = async () => {
       if (user) {
+        localStorage.removeItem('devops-commands-guest');
         setIsLoading(true);
         const { data: userCategories, error } = await supabase
           .from('categories')
