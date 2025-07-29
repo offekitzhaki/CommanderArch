@@ -350,8 +350,17 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
           setIsLoading(false);
           return;
         }
-        // Replace commands state with user categories only
-        setCommands(userCategories || []);
+        if (userCategories && userCategories.length > 0) {
+          setCommands(userCategories);
+        } else {
+          // New user, seed initial data for them
+          await seedInitialData(user.id);
+          const { data: seededCategories } = await supabase
+            .from('categories')
+            .select('*, commands(*)')
+            .order('created_at', { ascending: true });
+          setCommands(seededCategories || []);
+        }
         setIsLoading(false);
       } else {
         // Guest user
