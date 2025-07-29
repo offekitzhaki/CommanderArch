@@ -346,37 +346,38 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
       if (user) {
         setIsLoading(true);
         setCommands([]);
+        // Check if seeding was already done for this user (in localStorage)
         const alreadySeeded = localStorage.getItem(SEED_DONE_KEY + user.id);
-
-        // הגנה: אל תרוץ פעמיים
+        // Prevent running twice (e.g. React StrictMode)
         if (hasLoadedOnce.current) {
           setIsLoading(false);
           return;
         }
         hasLoadedOnce.current = true;
-
+        // Load categories from Supabase
         const { data: userCategories, error } = await supabase
           .from('categories')
           .select('*, commands(*)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: true });
-
         if (error) {
           setIsLoading(false);
           alert('Error loading categories. Please refresh the page.');
           return;
         }
-
+        // If no categories and not seeded yet, seed starter categories only once
         if ((!userCategories || userCategories.length === 0) && !alreadySeeded) {
           if (!isSeeding.current) {
             isSeeding.current = true;
             await seedInitialData(user.id);
             localStorage.setItem(SEED_DONE_KEY + user.id, 'true');
             setHasSeeded(true);
+            // Show welcome message only once
             if (!localStorage.getItem(WELCOME_SEED_KEY + user.id)) {
               setShowWelcome(true);
               localStorage.setItem(WELCOME_SEED_KEY + user.id, 'true');
             }
+            // Reload categories after seeding
             const { data: seededCategories } = await supabase
               .from('categories')
               .select('*, commands(*)')
@@ -427,43 +428,37 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   }, [commands, user]);
 
 
-  // עוטף את seedInitialData כך שתהיה עמידה (idempotent)
+  // Make seedInitialData idempotent: only seed if user has no categories
   const seedInitialData = async (userId: string) => {
-    // בדוק אם כבר קיימות קטגוריות למשתמש
+    // Check if user already has categories
     const { data: existingCategories, error } = await supabase
       .from('categories')
       .select('id')
       .eq('user_id', userId);
-
     if (error) {
       console.error('Error checking existing categories:', error);
       return;
     }
-
     if (existingCategories && existingCategories.length > 0) {
-      // כבר קיימות קטגוריות – לא מבצע seed
+      // Categories already exist – do not seed
       return;
     }
-
-    // כאן מבצע seed רק אם אין אף קטגוריה
+    // Only seed if there are no categories
     for (const category of initialCommandData) {
       const { data: catData, error: catError } = await supabase
         .from('categories')
         .insert({ name: category.name, user_id: userId })
         .select()
         .single();
-
       if (catError || !catData) {
         console.error('Error seeding category:', catError);
         continue;
       }
-
       const commandsToInsert = category.commands.map(cmd => ({
         ...cmd,
         category_id: catData.id,
         user_id: userId,
       }));
-
       await supabase.from('commands').insert(commandsToInsert);
     }
   };
@@ -512,7 +507,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   };
 
     const handleDeleteCategory = useCallback(async (category: Category) => {
-        if (!window.confirm(`האם אתה בטוח שברצונך למחוק את הקטגוריה "${category.name}" וכל הפקודות שבה? פעולה זו אינה ניתנת לשחזור.`)) {
+        if (!window.confirm(`Are you sure you want to delete the category "${category.name}" and all its commands? This action cannot be undone.`)) {
             return;
         }
         
@@ -526,7 +521,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
         const { error } = await supabase.from('categories').delete().eq('id', category.id).eq('user_id', user?.id || '');
         
         if (error) {
-            alert('שגיאה במחיקת הקטגוריה.');
+            alert('Error deleting category.');
             setCommands(originalCommands); // Revert on error
         }
     }, [commands, selectedCategory, user]);
@@ -777,10 +772,8 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
         </aside>
         <section className="content-panel">
           <h2>{contentTitle || (isLoading ? 'Loading...' : 'Select a Category')}</h2>
-          
-          {isLoading ? (
-            <Spinner />
-          ) : (
+          {/* Removed redundant Spinner here, loading is handled globally */}
+          {!isLoading ? (
             <>
               {!searchQuery && selectedCategory && user && (
                 <QuickAddCommand category={selectedCategory} onAddCommand={handleAddCommand} />
@@ -803,7 +796,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
                 </div>
               )}
             </>
-          )}
+          ) : null}
         </section>
       </main>
       {user && 
