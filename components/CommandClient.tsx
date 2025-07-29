@@ -321,6 +321,7 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
+  const isSeeding = useRef(false);
 
   // --- Auth and Data Loading ---
 
@@ -355,20 +356,23 @@ export default function CommandClient({ guestCommands }: { guestCommands: Catego
         }
 
         if (!userCategories || userCategories.length === 0) {
-          // משתמש חדש – מבצע seed
-          await seedInitialData(user.id);
-          // הצג הודעת ברוך הבא (רק פעם אחת)
-          if (!localStorage.getItem(WELCOME_SEED_KEY + user.id)) {
-            setShowWelcome(true);
-            localStorage.setItem(WELCOME_SEED_KEY + user.id, 'true');
+          if (!isSeeding.current) {
+            isSeeding.current = true;
+            await seedInitialData(user.id);
+            // הצג הודעת ברוך הבא (רק פעם אחת)
+            if (!localStorage.getItem(WELCOME_SEED_KEY + user.id)) {
+              setShowWelcome(true);
+              localStorage.setItem(WELCOME_SEED_KEY + user.id, 'true');
+            }
+            // טען שוב אחרי seed
+            const { data: seededCategories } = await supabase
+              .from('categories')
+              .select('*, commands(*)')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: true });
+            setCommands(seededCategories || []);
+            isSeeding.current = false;
           }
-          // טען שוב אחרי seed
-          const { data: seededCategories } = await supabase
-            .from('categories')
-            .select('*, commands(*)')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: true });
-          setCommands(seededCategories || []);
         } else {
           // משתמש קיים – מציג רק מה שיש
           setCommands(userCategories);
