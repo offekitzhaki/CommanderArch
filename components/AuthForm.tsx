@@ -17,6 +17,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   const isSignIn = mode === 'signin';
 
@@ -75,6 +80,22 @@ export default function AuthForm({ mode }: AuthFormProps) {
         setError(error.message);
         setLoading(false);
     }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetError(null);
+    setResetMessage(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: window.location.origin + '/auth/reset',
+    });
+    if (error) {
+      setResetError(error.message);
+    } else {
+      setResetMessage('If this email is registered, a password reset link has been sent.');
+    }
+    setResetLoading(false);
   };
 
   return (
@@ -137,6 +158,17 @@ export default function AuthForm({ mode }: AuthFormProps) {
             disabled={loading}
             minLength={6}
           />
+          {isSignIn && (
+            <button
+              type="button"
+              className="forgot-password-link"
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', marginTop: '0.5rem', textAlign: 'right', float: 'right', fontSize: '0.95rem' }}
+              onClick={() => setShowResetModal(true)}
+              tabIndex={0}
+            >
+              Forgot Password?
+            </button>
+          )}
         </div>
 
         <button type="submit" className="submit-button" disabled={loading}>
@@ -156,6 +188,39 @@ export default function AuthForm({ mode }: AuthFormProps) {
           <span>Continue with GitHub</span>
         </button>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showResetModal && (
+        <div className="modal-overlay" style={{zIndex: 2000}}>
+          <div className="modal-content" style={{maxWidth: 400, padding: '2rem 1.5rem'}}>
+            <div className="modal-header" style={{marginBottom: '1rem'}}>
+              <h2 style={{fontSize: '1.3rem', margin: 0}}>Reset Password</h2>
+              <button onClick={() => setShowResetModal(false)} className="close-button" style={{fontSize: '1.5rem'}}>&times;</button>
+            </div>
+            <form onSubmit={handleResetPassword} className="auth-form">
+              <div className="form-group">
+                <label htmlFor="resetEmail">Email Address</label>
+                <input
+                  id="resetEmail"
+                  name="resetEmail"
+                  type="email"
+                  className="form-input"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                  placeholder="you@example.com"
+                  disabled={resetLoading}
+                />
+              </div>
+              <button type="submit" className="submit-button" disabled={resetLoading}>
+                {resetLoading ? 'Sending...' : 'Send Reset Link'}
+              </button>
+            </form>
+            {resetError && <p style={{ color: 'var(--danger)', textAlign: 'center', marginTop: '1rem' }}>{resetError}</p>}
+            {resetMessage && <p style={{ color: 'var(--success)', textAlign: 'center', marginTop: '1rem' }}>{resetMessage}</p>}
+          </div>
+        </div>
+      )}
     </>
   );
 }
