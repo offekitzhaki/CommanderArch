@@ -154,9 +154,12 @@ const QuickAddCommand = ({ category, onAddCommand }: { category: Category; onAdd
             setDescription(data.description);
         } catch (error) {
             console.error("Error generating description:", error);
-            alert(`Failed to generate description: ${error.message}`);
-        } finally {
-            setIsGenerating(false);
+            // This is the fix: We check the type of 'error' before using it.
+            if (error instanceof Error) {
+                alert(`Failed to generate description: ${error.message}`);
+            } else {
+                alert(`An unknown error occurred.`);
+            }
         }
     };
 

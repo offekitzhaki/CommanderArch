@@ -1,4 +1,4 @@
-// File: C:\Users\offek\Downloads\devops-command-center-3\app\auth\layout.tsx
+// File: C:\Users\offek\Desktop\Commander\app\auth\layout.tsx
 import * as entry from '../../../../app/auth/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
