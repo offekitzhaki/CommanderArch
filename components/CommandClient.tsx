@@ -132,38 +132,60 @@ const QuickAddCommand = ({ category, onAddCommand }: { category: Category; onAdd
     const [description, setDescription] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
 
-    const handleGenerateDescription = async () => {
-        if (!command.trim()) {
-            alert('Please enter a command to generate a description.');
-            return;
-        }
-        setIsGenerating(true);
+    const handleGenerateDescription = async (commandId: number) => {
+        // Find the specific command that we are working on
+        const commandToUpdate = commands.find(c => c.id === commandId);
+        if (!commandToUpdate) return;
+    
+        // Set the generating state for this specific command
+        setIsGenerating(prevState => ({ ...prevState, [commandId]: true }));
+    
         try {
-            const response = await fetch('/api/generate-description', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command: command }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to generate description');
-            }
-
-            const { description: generatedDescription } = await response.json();
-            setDescription(generatedDescription);
-
+          const response = await fetch('/api/generate-description', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: commandToUpdate.command }),
+          });
+    
+          if (!response.ok) {
+            // If the API returns an error, we handle it
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to generate description');
+          }
+    
+          const { description } = await response.json();
+    
+          // --- THIS IS THE CRITICAL FIX ---
+          // 1. Update the description in the database
+          const { error: updateError } = await supabase
+            .from('commands')
+            .update({ description: description })
+            .eq('id', commandId);
+    
+          if (updateError) {
+            throw updateError;
+          }
+    
+          // 2. Update the state locally to reflect the change in the UI immediately
+          setCommands(currentCommands =>
+            currentCommands.map(cmd =>
+              cmd.id === commandId ? { ...cmd, description: description } : cmd
+            )
+          );
+          // --- END OF FIX ---
+    
         } catch (error) {
-            console.error("Error generating description:", error);
-            if (error instanceof Error) {
-                alert(`Failed to generate description: ${error.message}`);
-            } else {
-                alert(`An unknown error occurred.`);
-            }
+          console.error("Error generating description:", error);
+          if (error instanceof Error) {
+            alert(`Failed to generate description: ${error.message}`);
+          } else {
+            alert(`An unknown error occurred.`);
+          }
         } finally {
-            setIsGenerating(false);
+          // Turn off the generating state for this command
+          setIsGenerating(prevState => ({ ...prevState, [commandId]: false }));
         }
-    };
+      };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
